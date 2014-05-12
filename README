@@ -1,0 +1,30 @@
+Device File-based I/O Virtualization
+====================================
+
+Overview
+--------
+
+In Unix-like operating systems, everything is abstracted as a file.  'Device
+files' are the files that abstract I/O devices. We have built Paradice, a system
+that paravirtualizes I/O devices at the device file boundary. The modules here,
+released under the code name 'Device File-based I/O Virtualization (DFV)',
+implement the core functionalities used in Paradice. You can find more details
+on the design and performance of Paradice in our ASPLOS'14 paper:
+
+Ardalan Amiri Sani, Kevin Boos, Shaopu Qin, and Lin Zhong, "I/O
+Paravirtualization at the Device File Boundary," in Proc. ACM ASPLOS, March
+2014.
+
+link to PDF:
+
+http://www.ruf.rice.edu/~mobile/publications/amirisani2014asplos.pdf
+
+Please refer to the project website for more information on the code, including
+instructions for using the code, current limitations, and future work:
+
+http://www.owlnet.rice.edu/~ardalan/paradice.html
+
+Author
+------
+
+Ardalan Amiri Sani <arrdalan@gmail.com>
