@@ -315,14 +315,17 @@ struct dfv_op_args {
 
 /* irq related stuff */
 
-#define DFV_IRQ_NUM_ARGS 3
+#define DFV_IRQ_NUM_ARGS 	3
 /* irq page fields */
-#define DFV_IRQ_TYPE 0
-#define DFV_IRQ_PROCESS_TGID 1
-#define DFV_IRQ_THREAD_PID 2
+#define DFV_IRQ_TYPE 		0
+#define DFV_IRQ_PROCESS_ID 	1
+#define DFV_IRQ_THREAD_ID 	2
 /* irq field values for type */
-#define DFV_IRQ_POLL 1
-#define DFV_IRQ_SIGIO 2
+#define DFV_IRQ_POLL 		1
+#define DFV_IRQ_SIGIO 		2
+#define DFV_IRQ_DRM_FOREGRND 	3
+#define DFV_IRQ_DRM_BACKGRND 	4
+#define DFV_IRQ_CUSTOM		5
 
 struct dfv_file_struct
 {

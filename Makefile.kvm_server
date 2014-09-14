@@ -1,0 +1,21 @@
+.PHONY: clean
+
+all: build
+
+dfvserver-objs := dfv_common.o			\
+		  dfv_server.o
+
+dfvserver_kvm-objs := dfv_server_kvm.o
+
+obj-m := dfvserver.o				\
+	 dfvserver_kvm.o			\
+	 dfv_drm.o
+
+KDIR  := ~/dfv/ubuntu_dfv/debian/build/build-generic-pae/
+EXTRA_CFLAGS = -Wall
+
+build:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
+clean:
+	rm -rf *.ko *.o *.mod.* .*cmd Module.symvers modules.order .tmp_versions

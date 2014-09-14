@@ -1,0 +1,23 @@
+.PHONY: clean
+
+all: build
+
+dfvclient-objs := dfv_common.o			\
+		  dfv_client.o
+
+dfvclient_kvm-objs := dfv_client_kvm.o
+
+obj-m := dfvclient.o				\
+	 dfvclient_kvm.o			\
+	 dfv_pci.o				\
+	 dfv_gpu.o				\
+	 dfv_input.o
+
+KDIR  := ~/dfv/ubuntu_dfv2/debian/build/build-generic/
+EXTRA_CFLAGS = -Wall
+
+build:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
+clean:
+	rm -rf *.ko *.o *.mod.* .*cmd Module.symvers modules.order .tmp_versions

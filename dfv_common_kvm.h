@@ -1,6 +1,6 @@
 /*
  * Device File-based I/O Virtualization (DFV)
- * File: dfv_drm.h
+ * File: dfv_common_kvm.h
  *
  * Copyright (c) 2014 Rice University, Houston, TX, USA
  * All rights reserved.
@@ -20,17 +20,24 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-extern int (*dfv_drm_setcrtc)(uint32_t new_fb_id, uint32_t prev_fb_id, bool is_dfv);
-extern int (*dfv_drm_rmfb)(uint32_t fb_id);
+#define DFVK_SH_PAGE_RES_OFF		3
 
-struct drm_info_struct
-{
-	uint32_t fb_id;
-	uint32_t prev_fb_id;
-	bool fg;
-	struct guest_struct *guest;
-	struct list_head list;
+enum dfvk_custom_ops {
+	DFVK_CUSTOM_OP_SHARE_PAGE = 0,
+	DFVK_CUSTOM_OP_IRQ_PAGE = 1,
+	DFVK_CUSTOM_OP_FINISH_VM = 2
 };
 
-void dfv_drm_use_full(void);
-extern struct guest_struct *(*get_fg_guest)(void);
+#define DFVK_CUSTOM_OP				CUSTOM_REQ_ARG1
+
+#define DFVK_CUSTOM_SHARE_PAGE_GFN 		CUSTOM_REQ_ARG2
+#define DFVK_CUSTOM_SHARE_PAGE_RESULT		CUSTOM_RES_ARG1
+
+#define DFVK_CUSTOM_IRQ_PAGE_GFN 		CUSTOM_REQ_ARG2
+#define DFVK_CUSTOM_IRQ_PAGE_RESULT		CUSTOM_RES_ARG1
+
+/* FIXME: do not hard-code */
+#define DFVK_IRQ_NUM	 		13
+
+#define DFVK_IRQ_TYPE_OFF		3
+#define DFVK_IRQ_NUM_ARGS		9

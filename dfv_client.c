@@ -56,6 +56,9 @@
 #include "dfv_common.h"
 #include "dfv_client.h"
 
+struct task_struct *current_dfv_task;
+EXPORT_SYMBOL(current_dfv_task);
+
 struct list_head dfvprocess_list;
 struct list_head dfvthread_list;
 
@@ -96,7 +99,7 @@ struct dfvprocess_struct *add_dfvprocess(pid_t process_id)
 {
 	struct dfvprocess_struct *dfvprocess;
 
-	dfvprocess = kmalloc(sizeof(*dfvprocess), GFP_KERNEL);
+	dfvprocess = kzalloc(sizeof(*dfvprocess), GFP_KERNEL);
 	if (!dfvprocess) {
 		DFVPRINTK_ERR("Error: could not allocate memory\n");
 		return NULL;
@@ -154,12 +157,12 @@ struct dfvthread_struct *add_dfvthread(pid_t thread_id, pid_t process_id)
 	if (dfvprocess == NULL) {
 		dfvprocess = add_dfvprocess(process_id);
 		if (dfvprocess == NULL) {
-			DFVPRINTK_ERR("Error: dfvprocess could be added\n");
+			DFVPRINTK_ERR("Error: dfvprocess could not be added\n");
 			return NULL;
 		}
 	}
 
-	dfvthread = kmalloc(sizeof(*dfvthread), GFP_KERNEL);
+	dfvthread = kzalloc(sizeof(*dfvthread), GFP_KERNEL);
 	if (!dfvthread) {
 		DFVPRINTK_ERR("Error: could not allocate memory\n");
 
@@ -189,6 +192,7 @@ err_out:
 
 	return NULL;
 }
+EXPORT_SYMBOL(add_dfvthread);
 
 struct dfvthread_struct *get_dfvthread(pid_t thread_id, pid_t process_id)
 {
@@ -236,11 +240,14 @@ void remove_dfvthread(struct dfvthread_struct *_dfvthread)
 		if (dfvthread == _dfvthread && dfvthread->num_open_fds <= 0) {
 			dfvprocess = dfvthread->dfvprocess;
 			list_del(&dfvthread->list);
+			if (dfvthread->clean_dfvthread)
+				(*dfvthread->clean_dfvthread)(dfvthread);
 			kfree(dfvthread);
 			remove_dfvprocess(dfvprocess);
 		}
 	}
 }
+EXPORT_SYMBOL(remove_dfvthread);
 
 /* File operations implementation: */
 
@@ -402,7 +409,7 @@ static unsigned int dfv_fop_poll(struct file *file,
 	dfvthread->dispatch(dfvthread, req_args, res_args, NULL);
 
 	if (dfvthread->use_non_blocking_poll) {
-		if (wait && !OPEN_RESULT)
+		if (wait && !POLL_RESULT)
 			poll_wait(file, dfvthread->wait_queue, wait);
 
 	}
@@ -482,6 +489,7 @@ static int dfv_fop_mmap(struct file *file, struct vm_area_struct *vma)
 
 		return -ENOMEM;
 	} else {
+
 		*(struct vm_operations_struct *) vma->vm_ops = dfvvmops;
 	}
 
@@ -693,6 +701,12 @@ static int dfv_fop_fasync(int fd, struct file *file, int on)
 
 	fasync_helper(fd, file, on, &dfv_fasync);
 
+	/*
+	 * we use current_dfv_task for sending SIGUSR1 to when switching the
+	 * virtual console back to the VM.
+	 */
+	current_dfv_task = current;
+
 	dfvthread->dispatch(dfvthread, req_args, res_args, NULL);
 
 	return FASYNC_RESULT;
@@ -827,7 +841,7 @@ static void dfv_vmop_close(struct vm_area_struct *vma)
 	VM_CLOSE_VMFLAGS = vmflags;
 	VM_CLOSE_PGOFF = pgoff;
 
-	dfvthread->dispatch(dfvthread, req_args, res_args, NULL);
+	dfvthread->dispatch(dfvthread, req_args, res_args, (void *) vma);
 
 	kfree(vma->vm_ops);
 	vma->vm_ops = NULL;
@@ -883,7 +897,7 @@ static int dfv_eop_fault2(struct file *file, struct vm_fault *vmf,
 	FAULT2_FLAGS = vmf_flags;
 	FAULT2_PGOFF = vmf_pgoff;
 
-	dfvthread->dispatch(dfvthread, req_args, res_args, NULL);
+	dfvthread->dispatch(dfvthread, req_args, res_args, vma);
 
 	return FAULT2_RESULT;
 }
@@ -1032,6 +1046,7 @@ struct vm_operations_struct dfvvmops = {
 	.page_mkwrite = dfv_vmop_page_mkwrite,
 	.access       = dfv_vmop_access
 };
+EXPORT_SYMBOL(dfvvmops);
 
 static struct kobject *dfv_client_kobj;
 

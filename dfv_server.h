@@ -124,6 +124,7 @@ struct guest_vm_struct {
 			struct guest_struct *guest, struct vm_area_struct *vma,
 			unsigned long start_addr, unsigned long end_addr);
 	void (*send_poll_notification)(struct guest_thread_struct *guest_thread);
+	void (*send_drm_notification)(struct guest_struct *guest, int type);
 };
 extern struct list_head guest_vm_list;
 
@@ -163,6 +164,7 @@ struct guest_thread_struct {
 	unsigned long poll_key;
 	struct poll_wqueues *table;
 	void *private_data;
+	void (*clean_guest_thread)(struct guest_thread_struct *guest_thread);
 	struct list_head list;
 };
 extern struct list_head guest_thread_list;

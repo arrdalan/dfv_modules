@@ -73,6 +73,7 @@ struct dfvthread_struct {
 	void (*init_op)(struct dfvthread_struct *dfvthread,
 		struct dfv_op_all_args *local_args, struct dfv_op_args **req_args,
 		struct dfv_op_args **res_args);
+	void (*clean_dfvthread)(struct dfvthread_struct *dfvthread);
 	void *private_data;
 
 	struct list_head list;
@@ -84,6 +85,7 @@ extern struct fasync_struct *dfv_fasync;
 
 struct dfvthread_struct *get_dfvthread(pid_t thread_id, pid_t process_id);
 struct dfvthread_struct *add_dfvthread(pid_t thread_id, pid_t process_id);
+void remove_dfvthread(struct dfvthread_struct *_dfvthread);
 int set_init_dfvprocess(void (*func)(struct dfvprocess_struct *dfvprocess));
 int set_init_dfvthread(void (*func)(struct dfvthread_struct *dfvthread));
 int dfv_alloc_pages(void **virt_addr_ptr, void **phys_addr_ptr, int nr_pages);

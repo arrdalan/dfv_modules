@@ -294,6 +294,14 @@ static void dfvx_init_guest_vm(struct guest_vm_struct *guest_vm,
 				struct dfv_server_xen_info *ginfo)
 {
 
+	/*
+	 * This function will be called every time there is a new thread.
+	 * Fortunately, the content of this function is re-entrant and has
+	 * caused no problems in the past. But that might change in the future.
+	 * Therefore, it's best to (test and) use the following two lines
+	 * to return immediately after the first call.
+	 */
+
 	guest_vm->send_sigio = dfvx_send_sigio;
 	guest_vm->copy_from_user = dfvx_copy_from_client_user;
 	guest_vm->copy_to_user = dfvx_copy_to_client_user;
@@ -685,6 +693,8 @@ static int dfv_server_xen_remove(struct xenbus_device *dev)
 	info->bring2.sring = NULL;
 
 #endif
+
+	destroy_workqueue(info->wq);
 
 	kfree(info);
 

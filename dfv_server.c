@@ -398,8 +398,9 @@ void wait_for_poll(struct guest_thread_struct *guest_thread)
 
 	/*
 	 * guest->thread->table might change so we use table in the rest of this
-	 * function. Moreover, we do an atomic test and set here to make sure
-	 * only one waitqueue task uses this table.
+	 * function.
+	 * FIXME: The next two lines need to be done atomically.
+	 * preempt_*able() is not enough.
 	 */
 	preempt_disable();
 	table = guest_thread->table;
@@ -528,6 +529,8 @@ struct vma_list_struct *get_vma_entry_by_addr(struct guest_struct *guest,
 	DFVPRINTK_ERR("Error: could not find the vma_entry\n");
 	return NULL;
 }
+/* FIXME: might not be needed. */
+EXPORT_SYMBOL(get_vma_entry_by_addr);
 
 static void dfv_fop_mmap(struct guest_thread_struct *guest_thread,
 			struct dfv_op_args *req_args, struct dfv_op_args *res_args)
@@ -812,7 +815,12 @@ static struct work_struct dfv_sigio_wq; /* work for sigio interrupts */
 
 static void dfv_send_sigio_wq(struct work_struct *work)
 {
-	struct guest_struct *fg_guest = get_fg_guest();
+	struct guest_struct *fg_guest = NULL;
+
+	if (get_fg_guest)
+		fg_guest = (*get_fg_guest)();
+	else
+		DFVPRINTK_ERR("Error: get_fg_guest is NULL\n");
 
 	if (fg_guest)
 		fg_guest->guest_vm->send_sigio(fg_guest);
@@ -1129,6 +1137,8 @@ struct dfvdispatchcontrol dfvdispatchcontrol[] = {
 	{dfv_fop_setlease},
 	{dfv_fop_fallocate},
 };
+/* FIXME: might not be needed. */
+EXPORT_SYMBOL(dfvdispatchcontrol);
 
 struct guest_vm_struct *add_guest_vm(pid_t guest_vm_id)
 {
@@ -1142,6 +1152,8 @@ struct guest_vm_struct *add_guest_vm(pid_t guest_vm_id)
 
 	return guest_vm;
 }
+/* FIXME: might not be needed. */
+EXPORT_SYMBOL(add_guest_vm);
 
 struct guest_vm_struct *get_guest_vm(pid_t guest_vm_id)
 {
@@ -1156,6 +1168,8 @@ struct guest_vm_struct *get_guest_vm(pid_t guest_vm_id)
 
 	return NULL;
 }
+/* FIXME: might not be needed. */
+EXPORT_SYMBOL(get_guest_vm);
 
 void remove_guest_vm(struct guest_vm_struct *_guest_vm)
 {
@@ -1169,6 +1183,7 @@ void remove_guest_vm(struct guest_vm_struct *_guest_vm)
 		}
 	}
 }
+EXPORT_SYMBOL(remove_guest_vm);
 
 struct guest_struct *add_guest(pid_t guest_vm_id, pid_t guest_id)
 {
@@ -1259,6 +1274,8 @@ struct guest_thread_struct *add_guest_thread(pid_t guest_vm_id,
 
 	return guest_thread;
 }
+/* FIXME: might not be needed. */
+EXPORT_SYMBOL(add_guest_thread);
 
 struct guest_thread_struct *get_guest_thread(pid_t guest_vm_id,
 				pid_t guest_id, pid_t guest_thread_id)
@@ -1276,6 +1293,8 @@ struct guest_thread_struct *get_guest_thread(pid_t guest_vm_id,
 
 	return NULL;
 }
+/* FIXME: might not be needed. */
+EXPORT_SYMBOL(get_guest_thread);
 
 void remove_guest_thread(struct guest_thread_struct *_guest_thread)
 {
@@ -1288,11 +1307,14 @@ void remove_guest_thread(struct guest_thread_struct *_guest_thread)
 		    guest_thread->num_open_fds <= 0) {
 			guest = guest_thread->guest;
 			list_del(&guest_thread->list);
+			if (guest_thread->clean_guest_thread)
+				(*guest_thread->clean_guest_thread)(guest_thread);
 			kfree(guest_thread);
 			remove_guest(guest);
 		}
 	}
 }
+EXPORT_SYMBOL(remove_guest_thread);
 
 unsigned long __dfv_copy_from_user(void *to, const void __user *from,
 							unsigned long n)
