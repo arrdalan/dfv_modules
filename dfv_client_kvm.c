@@ -167,6 +167,8 @@ int dfvk_set_up_irq_page(void)
 	irq_pfn = ((unsigned long)irq_page_phys_addr) >> PAGE_SHIFT;
 	irq_page = irq_page_virt_addr;
 
+	memset(irq_page, 0x0, PAGE_SIZE);
+
 	INIT_OP(dfvthread, dummy_filp, DFV_OP_custom, local_args, req_args,
 								res_args);
 
@@ -242,6 +244,12 @@ static void dfvk_init_dfvthread(struct dfvthread_struct *dfvthread)
 	}
 }
 
+unsigned long irq_custom_counter = 0;
+unsigned long irq_poll_counter = 0;
+unsigned long irq_sigio_counter = 0;
+unsigned long irq_drm_foregrnd_counter = 0;
+unsigned long irq_drm_backgrnd_counter = 0;
+
 static irqreturn_t dfvk_irq_handler(int irq, void *dev_id)
 {
 	unsigned long irq_process_id;
@@ -257,14 +265,16 @@ static irqreturn_t dfvk_irq_handler(int irq, void *dev_id)
 		goto out;
 	}
 
-	if (irq_page[DFV_IRQ_CUSTOM + DFVK_IRQ_TYPE_OFF]) {
+	if (irq_page[DFV_IRQ_CUSTOM + DFVK_IRQ_TYPE_OFF] != irq_custom_counter) {
 
+		irq_custom_counter = irq_page[DFV_IRQ_CUSTOM + DFVK_IRQ_TYPE_OFF];
 		wake_up(&dfvthread_wait_queue);
 
 	}
 
-	if (irq_page[DFV_IRQ_POLL + DFVK_IRQ_TYPE_OFF]) {
+	if (irq_page[DFV_IRQ_POLL + DFVK_IRQ_TYPE_OFF] != irq_poll_counter) {
 
+		irq_poll_counter = irq_page[DFV_IRQ_POLL + DFVK_IRQ_TYPE_OFF];
 		irq_process_id = *(irq_page + DFV_IRQ_PROCESS_ID);
 		irq_thread_id = *(irq_page + DFV_IRQ_THREAD_ID);
 		dfvthread = get_dfvthread(irq_thread_id, irq_process_id);
@@ -275,14 +285,18 @@ static irqreturn_t dfvk_irq_handler(int irq, void *dev_id)
 
 	}
 
-	if (irq_page[DFV_IRQ_SIGIO + DFVK_IRQ_TYPE_OFF]) {
+	if (irq_page[DFV_IRQ_SIGIO + DFVK_IRQ_TYPE_OFF] != irq_sigio_counter) {
 
+		irq_sigio_counter = irq_page[DFV_IRQ_SIGIO + DFVK_IRQ_TYPE_OFF];
 		kill_fasync(&dfv_fasync, SIGIO, POLL_IN);
 
 	}
 
-	if (irq_page[DFV_IRQ_DRM_FOREGRND + DFVK_IRQ_TYPE_OFF]) {
+	if (irq_page[DFV_IRQ_DRM_FOREGRND + DFVK_IRQ_TYPE_OFF]
+						!= irq_drm_foregrnd_counter) {
 
+		irq_drm_foregrnd_counter =
+			irq_page[DFV_IRQ_DRM_FOREGRND + DFVK_IRQ_TYPE_OFF];
 		/* FIXME: SIGUSR1 might only work with X Server */
 		if (current_dfv_task) {
 			send_sig_info(SIGCONT, SEND_SIG_FORCED, current_dfv_task);
@@ -293,8 +307,11 @@ static irqreturn_t dfvk_irq_handler(int irq, void *dev_id)
 
 	}
 
-	if (irq_page[DFV_IRQ_DRM_BACKGRND + DFVK_IRQ_TYPE_OFF]) {
+	if (irq_page[DFV_IRQ_DRM_BACKGRND + DFVK_IRQ_TYPE_OFF]
+						!= irq_drm_backgrnd_counter) {
 
+		irq_drm_backgrnd_counter =
+			irq_page[DFV_IRQ_DRM_BACKGRND + DFVK_IRQ_TYPE_OFF];
 		if (current_dfv_task) {
 			send_sig_info(SIGSTOP, SEND_SIG_FORCED, current_dfv_task);
 		}

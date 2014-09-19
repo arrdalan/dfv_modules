@@ -59,28 +59,25 @@ static int dfvk_inject_interrupt(struct kvm *kvm, int irq_type,
 				 struct guest_thread_struct *guest_thread)
 {
 	int ret;
+	unsigned long *irq_page;
 
 	ENTER_CRIT_SEC3;
 
-	vm_data->irq_page[irq_type + DFVK_IRQ_TYPE_OFF] = 1;
-	if (guest_thread) { /* only used for DFV_IRQ_CUSTOM now */
-		vm_data->irq_page[DFV_IRQ_PROCESS_ID] = guest_thread->guest_id;
-		vm_data->irq_page[DFV_IRQ_THREAD_ID] =
-						guest_thread->guest_thread_id;
+	if (!vm_data->irq_vaddr) {
+		DFVPRINTK_ERR("Error: vm_data->irq_vaddr is NULL\n");
+		goto inject;
 	}
 
-	if (vm_data->irq_vaddr) {
-		memcpy(vm_data->irq_vaddr, vm_data->irq_page,
-				DFVK_IRQ_NUM_ARGS * sizeof(unsigned long));
-	} else if (vm_data->irq_gfn) { /* fallback */
-		ret = kvm_write_guest_page(kvm, vm_data->irq_gfn,
-				vm_data->irq_page, 0,
-				DFVK_IRQ_NUM_ARGS * sizeof(unsigned long));
-		if (ret)
-			DFVPRINTK_ERR("Error: kvm_write_guest_page failed!\n");
-	} else {
-		DFVPRINTK_ERR("Error: couldn't write the interrupt data!\n");
+	irq_page = vm_data->irq_vaddr;
+
+	if (guest_thread && irq_type == DFV_IRQ_POLL) { /* only used for DFV_IRQ_POLL now */
+
+		irq_page[DFV_IRQ_PROCESS_ID] = guest_thread->guest_id;
+		irq_page[DFV_IRQ_THREAD_ID] = guest_thread->guest_thread_id;
 	}
+
+	irq_page[irq_type + DFVK_IRQ_TYPE_OFF] =
+				irq_page[irq_type + DFVK_IRQ_TYPE_OFF] + 1;
 
 	/*
 	 * This general (read-write) barrier is important here to ensure that
@@ -90,8 +87,7 @@ static int dfvk_inject_interrupt(struct kvm *kvm, int irq_type,
 	 */
 	smp_mb();
 
-	vm_data->irq_page[irq_type + DFVK_IRQ_TYPE_OFF] = 0;
-
+inject:
 	ret = __dfvk_inject_interrupt(kvm, DFVK_IRQ_NUM);
 
 	EXIT_CRIT_SEC3;
@@ -280,7 +276,7 @@ static void dfvk_dispatch(struct work_struct *work)
 	struct dfvk_guest_thread_data *thread_data = NULL;
 	struct dfvk_guest_vm_data *vm_data;
 	bool need_poll_wait = false;
-	struct mm_struct *old_mm;
+	struct mm_struct *old_mm = NULL;
 	struct dfvk_work_struct *dfvk_work =
 			container_of(work, struct dfvk_work_struct, work);
 
@@ -388,6 +384,12 @@ static void dfvk_dispatch(struct work_struct *work)
 			guest_thread->guest_vm->private_data, NULL);
 
 	NEED_POLL_WAIT(guest_thread, need_poll_wait);
+
+	if (current->mm) {
+		current->mm = NULL;
+		current->active_mm = old_mm;
+
+	}
 
 	EXIT_CRIT_SEC2;
 

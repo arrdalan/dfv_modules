@@ -81,7 +81,6 @@ struct dfvk_work_struct {
 struct dfvk_guest_vm_data {
 	struct dfv_mem_slot_struct dfv_io_mem;
 	struct dfv_io_mem_bitmap_struct *io_bitmap;
-	unsigned long irq_page[DFVK_IRQ_NUM_ARGS];
 	gfn_t irq_gfn;
 	void *irq_vaddr;
 	struct page *irq_page_ptr;
