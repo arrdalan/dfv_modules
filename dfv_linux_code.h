@@ -8,12 +8,18 @@
 
 #ifndef _DFV_LINUX_CODE_H_
 #define _DFV_LINUX_CODE_H_
+
+#ifdef CONFIG_X86
+#include <linux/kvm_host.h>
+#include <linux/bootmem.h> /* max_low_pfn */
+#endif /* CONFIG_X86 */
+
 /* The next three are from fs/select.c */
 #define POLLIN_SET (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR)
 #define POLLOUT_SET (POLLWRBAND | POLLWRNORM | POLLOUT | POLLERR)
 #define POLLEX_SET (POLLPRI)
 
-#include <linux/kvm_host.h>
+#ifdef CONFIG_X86
 /* from arch/x86/kvm/mmu.c */
 #define PTE_PREFETCH_NUM		8
 
@@ -47,5 +53,34 @@ int next_segment(unsigned long len, int offset)
 	else
 		return len;
 }
+
+/* adopted from arch/x86/mm/fault.c */
+static bool low_pfn(unsigned long pfn)
+{
+	return pfn < max_low_pfn;
+}
+#endif /* CONFIG_X86 */
+
+#ifdef CONFIG_ARM
+/* from arch/arm/mm/fault.c */
+#define FSR_WRITE               (1 << 11)
+#define VM_FAULT_BADACCESS      0x020000
+
+/* For sound ioctls - start */
+/* from include/sound/asound.h */
+typedef unsigned long snd_pcm_uframes_t;
+typedef signed long snd_pcm_sframes_t;
+
+
+struct snd_xferi {
+	snd_pcm_sframes_t result;
+	void __user *buf;
+	snd_pcm_uframes_t frames;
+};
+
+#define SNDRV_PCM_IOCTL_WRITEI_FRAMES	_IOW('A', 0x50, struct snd_xferi)
+/* For sound ioctls - end */
+
+#endif /* CONFIG_ARM */
 
 #endif /* _DFV_LINUX_CODE_H_ */

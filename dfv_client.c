@@ -275,7 +275,7 @@ static loff_t dfv_fop_llseek(struct file *file, loff_t off, int dir)
 }
 
 static ssize_t dfv_fop_read(struct file *file, char __user *buf,
-	size_t size, loff_t *off)
+						size_t size, loff_t *off)
 {
 	struct dfv_op_all_args local_args;
 	struct dfv_op_args *req_args, *res_args;
@@ -302,7 +302,7 @@ static ssize_t dfv_fop_read(struct file *file, char __user *buf,
 }
 
 static ssize_t dfv_fop_write(struct file *file, const char __user *buf,
-	size_t size, loff_t *off)
+						size_t size, loff_t *off)
 {
 	struct dfv_op_all_args local_args;
 	struct dfv_op_args *req_args, *res_args;
@@ -435,7 +435,8 @@ static long dfv_fop_unlocked_ioctl(struct file *file, unsigned int cmd,
 	UNLOCKED_IOCTL_CMD = cmd;
 	UNLOCKED_IOCTL_ARG = arg;
 
-	dfvthread->dispatch(dfvthread, req_args, res_args, NULL);
+	/* file needed for ioctl info */
+	dfvthread->dispatch(dfvthread, req_args, res_args, (void *) file);
 
 	file->f_pos = OPRES_POSITION;
 
@@ -525,6 +526,7 @@ static int dfv_fop_open(struct inode *inode, struct file *file)
 	struct dfv_op_args *req_args, *res_args;
 	struct dfvthread_struct *dfvthread;
 	int ret;
+	struct dfv_private_data *private_data;
 
 	/* Not to carry over this data to next ops */
 	current->dfvdata[0] = NULL;
@@ -540,6 +542,15 @@ static int dfv_fop_open(struct inode *inode, struct file *file)
 		}
 	}
 
+	private_data = kzalloc(sizeof(*private_data), GFP_KERNEL);
+	if (!private_data) {
+		DFVPRINTK_ERR("Error: allocation of private_data failed\n");
+		ret = -ENOMEM;
+		goto err_out;
+	}
+
+	file->private_data = private_data;
+
 	INIT_OP(dfvthread, file, DFV_FOP_open, local_args, req_args, res_args);
 
 	abs_name = get_abs_name_from_pathname(pathname);
@@ -548,7 +559,7 @@ static int dfv_fop_open(struct inode *inode, struct file *file)
 		DFVPRINTK_ERR("Error: No equivalent abstract name was found.\n");
 
 		ret = -EINVAL;
-		goto err_out;
+		goto err_out2;
 	}
 
 	OPEN_PATHNAME = (unsigned long) abs_name;
@@ -560,12 +571,20 @@ static int dfv_fop_open(struct inode *inode, struct file *file)
 	if (OPEN_RESULT) {
 		DFVPRINTK_ERR("Error: open failed on the server\n");
 		ret = OPEN_RESULT;
-		goto err_out;
+		goto err_out2;
 	}
 
 	serverfops = OPEN_SERVERFOPS;
 
-	file->serverfd = OPEN_SERVERFD;
+	private_data->serverfd = OPEN_SERVERFD;
+	private_data->ioctl_info_type =
+				get_ioctl_info_from_abs_name(abs_name);
+	if (private_data->ioctl_info_type < 0) {
+		DFVPRINTK_ERR("Error: No ioctl_info_type was found.\n");
+		ret = -EINVAL;
+		goto err_out2;
+	}
+
 	file->f_pos = OPRES_POSITION;
 
 	file->f_op = kmalloc(sizeof(*file->f_op), GFP_KERNEL);
@@ -573,7 +592,7 @@ static int dfv_fop_open(struct inode *inode, struct file *file)
 		DFVPRINTK_ERR("Error: ran out of memory\n");
 
 		ret = -ENOMEM;
-		goto err_out;
+		goto err_out2;
 	} else {
 		*(struct file_operations *) file->f_op = dfvfops;
 	}
@@ -600,6 +619,9 @@ static int dfv_fop_open(struct inode *inode, struct file *file)
 
 	return 0;
 
+err_out2:
+	file->private_data = NULL;
+	kfree(private_data);
 err_out:
 	remove_dfvthread(dfvthread);
 
@@ -660,6 +682,8 @@ static int dfv_fop_release(struct inode *inode, struct file *file)
 		remove_dfvthread(dfvthread);
 		kfree(file->f_op);
 		file->f_op = NULL;
+		kfree(file->private_data);
+		file->private_data = NULL;
 	}
 
 	return RELEASE_RESULT;
@@ -1068,6 +1092,8 @@ static int __init dfv_client_init(void)
 		kobject_put(dfv_client_kobj);
 		return  -EFAULT;
 	}
+
+	register_fops = &dfvfops;
 
 	return 0;
 }

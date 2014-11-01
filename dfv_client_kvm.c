@@ -114,6 +114,7 @@ int dfvk_share_page(struct dfvthread_struct *dfvthread)
 
 	dfvthread->private_data = virt_addr;
 
+	dummy_filp->private_data = NULL;
 	INIT_OP(dfvthread, dummy_filp, DFV_OP_custom, local_args, req_args,
 								res_args);
 
@@ -144,10 +145,8 @@ int dfvk_set_up_irq_page(void)
 	struct dfv_op_all_args local_args;
 	struct dfv_op_args *req_args, *res_args;
 	struct dfvthread_struct *dfvthread;
+	bool dfvthread_added = false;
 
-	/*
-	 * We will clean up this dfvthread soon after we're done in here.
-	 */
 	dfvthread = get_dfvthread(DFVTHREAD_PID, DFVPROCESS_TGID);
 	if (dfvthread == NULL) {
 		dfvthread = add_dfvthread(DFVTHREAD_PID, DFVPROCESS_TGID);
@@ -155,6 +154,7 @@ int dfvk_set_up_irq_page(void)
 			DFVPRINTK_ERR("Error: dfvthread could not be added\n");
 			return -EINVAL;
 		}
+		dfvthread_added = true;
 	}
 
 	ret = dfv_alloc_pages(&irq_page_virt_addr, &irq_page_phys_addr, 1);
@@ -169,6 +169,7 @@ int dfvk_set_up_irq_page(void)
 
 	memset(irq_page, 0x0, PAGE_SIZE);
 
+	dummy_filp->private_data = NULL;
 	INIT_OP(dfvthread, dummy_filp, DFV_OP_custom, local_args, req_args,
 								res_args);
 
@@ -186,7 +187,9 @@ int dfvk_set_up_irq_page(void)
 
 	retval = 0;
 out:
-	remove_dfvthread(dfvthread);
+	if (dfvthread_added)
+		remove_dfvthread(dfvthread);
+
 	return retval;
 }
 
@@ -197,6 +200,7 @@ static int dfvk_finish_vm(void)
 	struct dfv_op_all_args local_args;
 	struct dfv_op_args *req_args, *res_args;
 	struct dfvthread_struct *dfvthread;
+	bool dfvthread_added = false;
 
 	/*
 	 * We will clean up this dfvthread soon after we're done in here.
@@ -208,8 +212,10 @@ static int dfvk_finish_vm(void)
 			DFVPRINTK_ERR("Error: dfvthread could not be added\n");
 			return -EINVAL;
 		}
+		dfvthread_added = true;
 	}
 
+	dummy_filp->private_data = NULL;
 	INIT_OP(dfvthread, dummy_filp, DFV_OP_custom, local_args, req_args,
 								res_args);
 
@@ -217,7 +223,9 @@ static int dfvk_finish_vm(void)
 
 	dfvthread->dispatch(dfvthread, req_args, res_args, NULL);
 
-	remove_dfvthread(dfvthread);
+	if (dfvthread_added)
+		remove_dfvthread(dfvthread);
+
 	return 0;
 }
 

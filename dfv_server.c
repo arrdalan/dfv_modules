@@ -327,8 +327,7 @@ static void dfv_fop_poll(struct guest_thread_struct *guest_thread,
 
 	/*
 	 * Blocking poll is useful if the communication latency between the
-	 * client and server is high. Note that the code below is not
-	 * properly tested. Use non-blocking poll for I/O virtualization.
+	 * client and the server is high.
 	 */
 	if (!guest_thread->use_non_blocking_poll && POLL_NULLKEY == 0) {
 
@@ -355,7 +354,24 @@ static void dfv_fop_poll(struct guest_thread_struct *guest_thread,
 			timed_out = 1;
 
 		if (!timed_out) {
-			result = file->f_op->poll(file, NULL);
+
+			/*
+			 * Technically, we should call file->f_op->poll()
+			 * here to get the result. Given that there was no
+			 * time-out, it makes sense to directly return the
+			 * result (unless the driver returns something else
+			 * other than (POLLIN | POLLRDNORM), in which case
+			 * this code will be wrong). Directly returning the
+			 * result helped with the accelerometer
+			 * in Rio, since calling the poll returns 0 due to the
+			 * fact that the server itself calls poll first. Ideally,
+			 * we should disable the server from using the sensor
+			 * at the exact same time, but this technique of
+			 * returning the result directly here gives us the
+			 * ability to support both the server and the client
+			 * at the same time.
+			 */
+			result = POLLIN | POLLRDNORM;
 
 		}
 
@@ -815,6 +831,7 @@ static struct work_struct dfv_sigio_wq; /* work for sigio interrupts */
 
 static void dfv_send_sigio_wq(struct work_struct *work)
 {
+#ifdef CONFIG_X86
 	struct guest_struct *fg_guest = NULL;
 
 	if (get_fg_guest)
@@ -824,6 +841,7 @@ static void dfv_send_sigio_wq(struct work_struct *work)
 
 	if (fg_guest)
 		fg_guest->guest_vm->send_sigio(fg_guest);
+#endif /* CONFIG_X86 */
 }
 
 /*
@@ -1626,7 +1644,9 @@ static int __init dfv_server_init(void)
 	dfv_copy_from_user_ll_nocache_nozero =
 					__dfv_copy_from_user_ll_nocache_nozero;
 	dfv_copy_to_user_inatomic = __dfv_copy_to_user_inatomic;
+#ifdef CONFIG_X86
 	dfv_send_sigio = __dfv_send_sigio;
+#endif /* CONFIG_X86 */
 
 	INIT_LIST_HEAD(&dfv_file_list);
 	INIT_LIST_HEAD(&guest_vm_list);

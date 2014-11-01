@@ -327,18 +327,25 @@ struct dfv_op_args {
 #define DFV_IRQ_DRM_BACKGRND 	4
 #define DFV_IRQ_CUSTOM		5
 
+enum ioctl_info_type {
+	DFV_IOCTL_INFO_GENERIC = 0,
+	DFV_IOCTL_INFO_SOUND = 1
+};
+
 struct dfv_file_struct
 {
 	char *filename;
 	int abs_name;
+	int ioctl_info_type;
 	struct list_head list;
 };
 extern struct list_head dfv_file_list;
+extern struct file_operations *register_fops;
 
-int add_file_to_dfv_file_list(char *filename, int type);
 void empty_dfv_file_list(void);
 int get_abs_name_from_pathname(const char *pathname);
 char *get_pathname_from_abs_name(int abs_name);
+int get_ioctl_info_from_abs_name(int abs_name);
 
 long sys_open_kernel(const char __user * pathname, int flags, int mode,
 							struct file **_f);

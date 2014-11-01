@@ -50,6 +50,7 @@
 extern struct file_operations dfvfops;
 extern struct vm_operations_struct dfvvmops;
 
+/* FIXME: rename */
 #define DFVTHREAD_PID current->pid
 #define DFVPROCESS_TGID current->tgid
 
@@ -80,6 +81,11 @@ struct dfvthread_struct {
 };
 extern struct list_head dfvthread_list;
 
+struct dfv_private_data {
+	int serverfd;
+	int ioctl_info_type;
+};
+
 extern struct task_struct *current_dfv_task;
 extern struct fasync_struct *dfv_fasync;
 
@@ -94,12 +100,13 @@ int dfv_alloc_pages(void **virt_addr_ptr, void **phys_addr_ptr, int nr_pages);
 	dfvthread->init_op(dfvthread, &local_args, &req_args, &res_args); 	\
 	DFVPRINTK("initializing operation: " #oper				\
 		" file=%#x serverfd=%d\n", (unsigned int) f,			\
-		f ? f->serverfd : -1);						\
+		(f && f->private_data) ? ((struct dfv_private_data *) (f->private_data))->serverfd : -1); \
 	DFVPRINTK("tgid = %d, pid = %d\n", current->tgid, current->pid);	\
 	OPREQ_OP_SERVERFD = oper;						\
 	OPREQ_OP_SERVERFD = OPREQ_OP_SERVERFD << 16;				\
 	OPREQ_OP_SERVERFD &= 0xffff0000;					\
-	OPREQ_OP_SERVERFD |= ((f ? f->serverfd : -1) & 0x0000ffff);		\
+	OPREQ_OP_SERVERFD |= (((f && f->private_data) ? ((struct dfv_private_data *) (f->private_data))\
+					->serverfd : -1) & 0x0000ffff);		\
 	OPREQ_ID = current->tgid;						\
 	OPREQ_ID = OPREQ_ID << 16;						\
 	OPREQ_ID &= 0xffff0000;							\

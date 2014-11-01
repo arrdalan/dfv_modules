@@ -1,0 +1,33 @@
+.PHONY: clean
+
+all: build
+
+dfvserver-objs := dfv_common.o			\
+		  dfv_server.o
+
+dfvserver_network-objs := dfv_common_network.o 	\
+			  dfv_dsm.o		\
+		          dfv_server_network.o
+
+dfvclient-objs := dfv_common.o			\
+		  dfv_client.o
+
+dfvclient_network-objs := dfv_common_network.o	\
+			  dfv_ioctl_info.o	\
+			  dfv_dsm.o		\
+			  dfv_client_network.o
+
+obj-m := dfvserver.o				\
+	 dfvserver_network.o			\
+	 dfvclient.o				\
+	 dfvclient_network.o			\
+	 ksocket.o
+
+KDIR  := ~/dfv/android_dfv/system/out/target/product/maguro/obj/KERNEL_OBJ
+EXTRA_CFLAGS = -Wall
+
+build:
+	$(MAKE) ARCH=arm SUBARCH=arm CROSS_COMPILE=arm-eabi- -C $(KDIR) SUBDIRS=$(PWD) modules
+
+clean:
+	rm -rf *.ko *.o *.mod.* .*cmd Module.symvers modules.order .tmp_versions

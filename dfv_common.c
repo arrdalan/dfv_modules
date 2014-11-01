@@ -50,6 +50,12 @@ module_param_string(device_file_pathname, device_file_pathname,
 static int device_type;
 module_param(device_type, int, 0660);
 
+static int ioctl_info_type = DFV_IOCTL_INFO_GENERIC;
+module_param(ioctl_info_type, int, 0660);
+
+static int major_number = -1;
+module_param(major_number, int, 0660);
+
 /*
  * This bitmap is used to communicate from the server to the client which
  * operations are supported for a specific file that is opened. The order
@@ -99,26 +105,47 @@ struct dfvbitmap dfvbitmap[] = {
 };
 
 struct list_head dfv_file_list;
+struct file_operations *register_fops;
 
-int add_file_to_dfv_file_list(char *filename, int type)
+static int dfv_register_char_device(char *name, int major_num)
 {
-	struct dfv_file_struct *dfv_file = kmalloc(sizeof(*dfv_file), GFP_KERNEL);
+	int retval;
+
+	if (!register_fops)
+		return -EINVAL;
+
+	retval = register_chrdev(major_num, name, register_fops);
+	if (retval < 0) {
+		DFVPRINTK_ERR("Error: cannot obtain major number %d\n", major_num);
+		return retval;
+	}
+
+	return 0;
+}
+
+static int add_file_to_dfv_file_list(char *filename, int type,
+							int ioctl_info_type)
+{
+	struct dfv_file_struct *dfv_file;
+
+	dfv_file = kmalloc(sizeof(*dfv_file), GFP_KERNEL);
 	if (!dfv_file)
 		return -ENOMEM;
 
-	dfv_file->filename = kmalloc(strlen(filename)+1, GFP_KERNEL);
+	dfv_file->filename = kmalloc(strlen(filename) + 1, GFP_KERNEL);
 	if (!dfv_file->filename)
 		return -ENOMEM;
 
 	strcpy(dfv_file->filename, filename);
 	dfv_file->abs_name = type;
+	dfv_file->ioctl_info_type = ioctl_info_type;
 	INIT_LIST_HEAD(&dfv_file->list);
 	list_add(&dfv_file->list, &dfv_file_list);
 
 	return 0;
 }
 
-int remove_file_from_dfv_file_list(const char *pathname)
+static int remove_file_from_dfv_file_list(const char *pathname)
 {
 	struct dfv_file_struct *dfv_file, *tmp;
 
@@ -172,6 +199,21 @@ int get_abs_name_from_pathname(const char *pathname)
 	return -EINVAL;
 }
 
+int get_ioctl_info_from_abs_name(int abs_name)
+{
+	struct dfv_file_struct *dfv_file;
+	int ioctl_info_type;
+
+	list_for_each_entry(dfv_file, &dfv_file_list, list) {
+		if (dfv_file->abs_name == abs_name) {
+			ioctl_info_type = dfv_file->ioctl_info_type;
+			return ioctl_info_type;
+		}
+	}
+
+	return -EINVAL;
+}
+
 char *get_pathname_from_abs_name(int abs_name)
 {
 	struct dfv_file_struct *dfv_file;
@@ -190,7 +232,7 @@ char *get_pathname_from_abs_name(int abs_name)
 static ssize_t add_device_file_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	int ret;
+	int ret, major_num;
 
 	if (device_type < 0)
 		return sprintf(buf, "Error: device_type must be >= 0\n");
@@ -202,7 +244,18 @@ static ssize_t add_device_file_show(struct kobject *kobj,
 		return sprintf(buf, "Error: device_file_pathname "
 							"already exists\n");
 
-	ret = add_file_to_dfv_file_list(device_file_pathname, device_type);
+	if (major_number != -1) {
+		major_num = major_number;
+		major_number = -1;
+		ret = dfv_register_char_device(device_file_pathname, major_num);
+		if (ret)
+			return sprintf(buf, "Error: could not register char "
+						"device file %d\n", major_num);
+	}
+
+	ret = add_file_to_dfv_file_list(device_file_pathname, device_type,
+							ioctl_info_type);
+	ioctl_info_type = DFV_IOCTL_INFO_GENERIC; /* default */
 	if (ret)
 		return sprintf(buf, "Error: could not add device file "
 							"(error = %d)\n", ret);
@@ -219,12 +272,18 @@ static ssize_t add_device_file_store(struct kobject *kobj,
 static ssize_t remove_device_file_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	int ret;
+	int ret, major_num;
 
 	ret = remove_file_from_dfv_file_list(device_file_pathname);
 	if (ret)
 		return sprintf(buf, "Error: could not remove device file "
 							"(error = %d)\n", ret);
+
+	if (major_number != -1) {
+		major_num = major_number;
+		major_number = -1;
+		unregister_chrdev(major_num, device_file_pathname);
+	}
 
 	return sprintf(buf, "device file successfully removed\n");
 }
